@@ -1,7 +1,6 @@
 """Download/cache the local model during deployment, before serving requests."""
-from chunking import MODEL_LOCK, load_model
+from chunking import load_model
 
 if __name__ == "__main__":
-    with MODEL_LOCK:
-        load_model()
+    load_model()
     print("Semantic chunking model ready.")

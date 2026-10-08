@@ -1,4 +1,4 @@
-﻿# Transcript chunking API
+# Transcript chunking API
 
 `POST /chunk` splits an English YouTube transcript into semantic chunks.
 `GET /` is the health endpoint; `/docs` provides interactive testing.
@@ -105,10 +105,13 @@ memory usage after deployment. Free instances sleep when idle.
 - `download_model.py`: prepares the model during deployment.
 - `test_chunking.py`: parser, semantic splitting, and API tests.
 
-Errors use JSON `detail`: `422` for invalid input, `503` for a busy/unavailable
-model, and `500` for unexpected errors (traceback in server logs). Busy responses
-include `Retry-After: 5`. Requests are limited to 1,000,000 transcript characters.
-One request runs at a time to limit inference memory. This remains a public test API.
+Errors use JSON `detail`: `422` for invalid input, `503` for an unavailable
+model, and `500` for unexpected errors (traceback in server logs). Requests are limited to 1,000,000 transcript characters.
+Concurrent chunk requests are currently enabled for testing. Only model initialization
+is locked, so requests share one model per worker. To restore the previous limit,
+uncomment both the `MODEL_LOCK.acquire` block and `MODEL_LOCK.release` in
+`create_chunks`. Concurrent inference uses more memory and CPU; local tests do not
+guarantee capacity on Render Free. This remains a public test API.
 
 Run tests:
 

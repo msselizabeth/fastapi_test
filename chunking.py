@@ -1,4 +1,4 @@
-﻿"""Parse simple timestamped transcripts and split them by semantic similarity."""
+"""Parse simple timestamped transcripts and split them by semantic similarity."""
 
 import logging
 from pathlib import Path
@@ -11,7 +11,8 @@ from fastapi import HTTPException
 from schemas import ChunkRequest, ChunkResponse, Word
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-MODEL_LOCK = Lock()
+MODEL_LOCK = Lock()  # Optional request limit; currently disabled below.
+_MODEL_INIT_LOCK = Lock()
 _model = None
 TIMESTAMP = re.compile(r"^[ \t]*(\d{2,}:[0-5]\d:[0-5]\d\.\d{3})[ \t]*$", re.MULTILINE)
 
@@ -58,17 +59,18 @@ def parse_transcript(text: str) -> list[Word]:
 
 
 def load_model():
-    """Load one cached CPU model; called while MODEL_LOCK is held."""
+    """Initialize once; concurrent requests then share the loaded model."""
     global _model
-    if _model is None:
-        from fastembed import TextEmbedding
+    with _MODEL_INIT_LOCK:
+        if _model is None:
+            from fastembed import TextEmbedding
 
-        _model = TextEmbedding(
-            model_name=MODEL_NAME,
-            cache_dir=str(Path(__file__).resolve().parent / ".model_cache"),
-            threads=1,
-            providers=["CPUExecutionProvider"],
-        )
+            _model = TextEmbedding(
+                model_name=MODEL_NAME,
+                cache_dir=str(Path(__file__).resolve().parent / ".model_cache"),
+                threads=1,
+                providers=["CPUExecutionProvider"],
+            )
     return _model
 
 
@@ -107,8 +109,9 @@ def get_semantic_chunks(words: list[Word], min_words: int = 60,
 
 
 def create_chunks(request: ChunkRequest) -> ChunkResponse:
-    if not MODEL_LOCK.acquire(blocking=False):
-        raise HTTPException(503, "Chunker is busy. Retry shortly.", headers={"Retry-After": "5"})
+    # To restore one request at a time, uncomment acquisition AND release below.
+    # if not MODEL_LOCK.acquire(blocking=False):
+    #     raise HTTPException(503, "Chunker is busy. Retry shortly.", headers={"Retry-After": "5"})
     try:
         try:
             youtube_id = extract_youtube_id(request.youtubeLink)
@@ -132,4 +135,5 @@ def create_chunks(request: ChunkRequest) -> ChunkResponse:
         } for index, group in enumerate(groups)]
         return ChunkResponse(chunks=chunks, chunk_count=len(chunks))
     finally:
-        MODEL_LOCK.release()
+        # MODEL_LOCK.release()  # Uncomment together with acquisition above.
+        pass
